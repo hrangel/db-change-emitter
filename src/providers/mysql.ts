@@ -1,10 +1,10 @@
 import mysql, { RowDataPacket } from "mysql2";
 
-import { Field } from "../structure/meta/field";
-import { LinkedTableField } from "../structure/meta/linked-table-field";
-import { Table } from "../structure/meta/table";
+import { Field } from "../structure/field";
+import { LinkedTableField } from "../structure/linked-table-field";
+import { Table } from "../structure/table";
 
-import { IndirectTableField } from "../structure/meta/indirect-table-field";
+import { IndirectTableField } from "../structure/indirect-table-field";
 import { DBProvider } from "./provider";
 
 export class MysqlProvider implements DBProvider {
@@ -103,20 +103,30 @@ export class MysqlProvider implements DBProvider {
       item.finalRow.COLUMN_NAME, item.finalRow.REFERENCED_TABLE_NAME, item.finalRow.REFERENCED_COLUMN_NAME));
   }
 
+  async listAllTableNames(): Promise<string[]> {
+    return (await this.getResult('SELECT table_name FROM information_schema.tables WHERE table_schema = ?', this.connectionParams.database)).map(row => row.TABLE_NAME);
+  }
+
   async readTableMeta(tableName: string) : Promise<Table> {
     const table: Table = new Table(tableName);
 
+    const primaryFields = await this.getResult(`SHOW KEYS FROM ${tableName} WHERE Key_name = 'PRIMARY'`, null);
+    if (!primaryFields || primaryFields.length === 0) {
+      console.log('NO PRIMARY FIELDS for table: ' + tableName);
+      return null;
+    }
+    const primaryFieldName = primaryFields[0].Column_name;
     table.primitiveFields = await this.readPrimitiveFields(tableName);
-    const primaryFieldName = (await this.getResult(`SHOW KEYS FROM ${tableName} WHERE Key_name = 'PRIMARY'`, null))[0].Column_name;
-    table.primaryKey = table.primitiveFields.find(i => i.name === primaryFieldName);
     table.parentFields = await this.readParentFields(tableName);
+    table.primaryKey = table.primitiveFields.find(i => i.name === primaryFieldName) || 
+      table.parentFields.find(i => i.name === primaryFieldName);
     table.oneToManyFields = await this.readOneToManyChildrenFields(tableName);
     table.manyToManyFields = await this.readManyToManyChildrenFields(tableName);
 
     return table;
   }
 
-  public async rowsToComparisonJson(table: Table) {
+  public async listTableData(table: Table) {
     const rows = await this.getResult(`SELECT * FROM ${table.name}`, []);
     const rowsMap = { };
     for (const row of rows) {
@@ -125,12 +135,16 @@ export class MysqlProvider implements DBProvider {
       row.nested = {};
       if (table.parentFields.length > 0) {
         for (const field of table.parentFields) {
-          row.nested[field.name] = await this.getResult(`SELECT * FROM ${field.foreignTableName} WHERE ${field.foreignPrimaryKey} = ?`, row[field.name])[0];
+          const parents =  await this.getResult(`SELECT * FROM ${field.foreignTableName} WHERE ${field.foreignPrimaryKey} = ?`, [ row[field.name] ])
+          if (parents.length > 0) {
+            row.nested[field.name] = parents[0];
+          }
         }
       }
       if (table.oneToManyFields.length > 0) {
         for (const field of table.oneToManyFields) {
-          row.nested[field.foreignTableName] = await this.getResult(`SELECT * FROM ${field.foreignTableName} WHERE ${field.name} = ?`, primaryKeyValue);
+          const innerQuery = `SELECT * FROM ${field.foreignTableName} WHERE ${field.name} = ?`;
+          row.nested[field.foreignTableName] = await this.getResult(innerQuery, [ primaryKeyValue ]);
         }
       }
       if (table.manyToManyFields.length > 0) {
@@ -141,16 +155,16 @@ export class MysqlProvider implements DBProvider {
                     INNER JOIN ${field.finalForeignTableName} t2 ON t1.${field.finalFieldName} = t2.${field.finalForeignPrimaryKey}
             WHERE   t1.${field.name} = ?
           `;
-          row.nested[field.finalForeignTableName] = await this.getResult(manyQuery, primaryKeyValue);
+          row.nested[field.finalForeignTableName] = await this.getResult(manyQuery, [ primaryKeyValue ]);
         }
       }
     }
     return rowsMap;
   }
 
-  public areDifferentJson(jsonBase, jsonAux) {
-    const baseCopy = { ...jsonBase };
-    const auxCopy = { ...jsonAux };
+  public compareTableDataItem(item1, item2) {
+    const baseCopy = { ...item1 };
+    const auxCopy = { ...item2 };
     delete baseCopy.nested;
     delete auxCopy.nested;
     return JSON.stringify(baseCopy) !== JSON.stringify(auxCopy);

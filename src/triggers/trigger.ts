@@ -1,0 +1,1 @@
+export type DataTrigger = (tableName: string, data: any) => Promise<any>;

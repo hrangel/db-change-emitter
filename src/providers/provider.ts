@@ -1,7 +1,9 @@
-import { Table } from "../structure/meta/table";
+import { Table } from "../structure/table";
 
 export interface DBProvider {
   readTableMeta(tableName: string) : Promise<Table>;
-  rowsToComparisonJson(table: Table): Promise<{ [key: string]: any }>;
-  areDifferentJson(json1, json2): boolean;
+  listAllTableNames() : Promise<string[]>;
+  
+  listTableData(table: Table): Promise<{ [key: string]: any }>;
+  compareTableDataItem(item1, item2): boolean;
 }

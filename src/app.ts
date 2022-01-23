@@ -1,12 +1,15 @@
-import axios from 'axios';
 import { writeFileSync, readFileSync, existsSync } from 'fs';
 import { join } from 'path';
+require('dotenv').config();
 
 import { MysqlProvider } from "./providers/mysql";
 import { DBProvider } from './providers/provider';
-import { Table } from './structure/meta/table';
 
-require('dotenv').config();
+import { Table } from './structure/table';
+import { DataTrigger } from './triggers/trigger';
+import { RabbitMQTrigger } from './triggers/rabbitmq-trigger';
+import { WebhookTrigger } from './triggers/webhook-trigger';
+
 
 type ComparisonItem = {
   previous?: any;
@@ -28,7 +31,7 @@ const compareToBackup = async (currentJson: any, backupFilePath: string, provide
     const item = currentJson[existingKey];
     if (backupKeys.indexOf(existingKey) > -1) {
       const backupItem = backupJson[existingKey];
-      if (provider.areDifferentJson(backupItem, item)) {
+      if (provider.compareTableDataItem(backupItem, item)) {
         items.push({ previous: backupItem, current: item });
       }
     } else {
@@ -46,9 +49,9 @@ const compareToBackup = async (currentJson: any, backupFilePath: string, provide
   return items;
 }
 
-const triggerOnChanges = async (table: Table, provider: DBProvider, triggerCallback: (data) => Promise<any>) => {
+const triggerOnChanges = async (table: Table, provider: DBProvider, triggerCallback: DataTrigger) => {
   const backupPath = join(process.env.BKP_FOLDER, `${table.name}.bkp`);
-  const currentJson = await provider.rowsToComparisonJson(table);
+  const currentJson = await provider.listTableData(table);
   if (!existsSync(backupPath)) {
     await backupTableJson(currentJson, backupPath);
     return null;
@@ -56,7 +59,8 @@ const triggerOnChanges = async (table: Table, provider: DBProvider, triggerCallb
   const items = await compareToBackup(currentJson, backupPath, provider);
   if (items.length > 0) {
     await backupTableJson(currentJson, backupPath);
-    return await triggerCallback({
+    console.log('TRIGGERING: ' + table.name);
+    return await triggerCallback(table.name, {
       table: table.name,
       items,
     });
@@ -71,20 +75,19 @@ const mainProvider: DBProvider = (new MysqlProvider({
   database: process.env.DB_NAME
 }));
 
+const trigger: DataTrigger = process.env.TRIGGER_TYPE === 'RabbitMQ' ? RabbitMQTrigger : WebhookTrigger;
+
 const checkForChanges = async () => {
-  const triggerUrl = process.env.TRIGGER_URL;
-  const tables = process.env.DB_TABLES.split(',');
+  const tables = process.env.DB_TABLES?.length > 0 ? process.env.DB_TABLES.split(',') : (await mainProvider.listAllTableNames());
   for (const tableName of tables) {
     const table = await mainProvider.readTableMeta(tableName);
-    await triggerOnChanges(table, mainProvider, (data) => {
-      if (triggerUrl?.length > 0) {
-        return axios.post(triggerUrl, data);
-      } else {
-        console.log(table.name, JSON.stringify(data));
-      }
-      return Promise.resolve(null);
-    });
+    if (table) {
+      await triggerOnChanges(table, mainProvider, trigger);
+    }
   }
 }
 
-checkForChanges().then(() => console.log('Finished')).catch(err => console.error(err));
+checkForChanges().then(() => {
+  console.log('Finished');
+  process.exit();
+}).catch(err => console.error(err));
