@@ -88,8 +88,9 @@ const checkForChanges = async () => {
   }
 }
 
+console.log('Starting', new Date());
 checkForChanges().then(() => {
-  console.log('Finished');
+  console.log('Finished', new Date());
   process.exit();
 }).catch(err => { 
   console.error(err)
