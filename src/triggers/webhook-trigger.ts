@@ -14,13 +14,13 @@ const configFilePath = process.env.WEBHOOK_CONFIG;
 if (existsSync(configFilePath)) {
   const config = JSON.parse(readFileSync(configFilePath, 'utf-8'));
   fallbackWebhooks = config.fallbackWebhooks || [];
-  tableWebhooks = config.tableWebhooks || [];
+  tableWebhooks = config.tableWebhooks || {};
 }
 
 
 export const WebhookTrigger = async (tableName, data) => {
   const webwooks = tableWebhooks[tableName] || fallbackWebhooks;
-  if (triggerUrl?.length > 0) {
+  if (webwooks.length > 0) {
     const results = [];
     for (const webwookUrl of webwooks) {
       try {

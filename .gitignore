@@ -18,6 +18,9 @@ coverage
 # API keys and secrets
 .env
 
+# Env configs
+webhooks.json
+
 # Dependency directory
 node_modules
 bower_components
