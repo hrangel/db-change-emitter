@@ -91,4 +91,7 @@ const checkForChanges = async () => {
 checkForChanges().then(() => {
   console.log('Finished');
   process.exit();
-}).catch(err => console.error(err));
+}).catch(err => { 
+  console.error(err)
+  process.exit();
+});
