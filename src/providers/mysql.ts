@@ -7,6 +7,15 @@ import { Table } from "../structure/table";
 import { IndirectTableField } from "../structure/indirect-table-field";
 import { DBProvider } from "./provider";
 
+const objectKeysToLowerCase = (origObj): any => {
+  return Object.keys(origObj).reduce(function (newObj, key) {
+      let val = origObj[key];
+      let newVal = (typeof val === 'object') ? objectKeysToLowerCase(val) : val;
+      newObj[key.toLowerCase()] = newVal;
+      return newObj;
+  }, {});
+}
+
 export class MysqlProvider implements DBProvider {
   private db: any;
   constructor(private connectionParams: any) {
@@ -104,10 +113,7 @@ export class MysqlProvider implements DBProvider {
   }
 
   async listAllTableNames(): Promise<string[]> {
-    return (await this.getResult('SELECT table_name FROM information_schema.tables WHERE table_schema = ?', this.connectionParams.database)).map(row => {
-      console.log('table:', row);
-      return row.TABLE_NAME;
-    });
+    return (await this.getResult('SELECT table_name FROM information_schema.tables WHERE table_schema = ?', this.connectionParams.database)).map(row => objectKeysToLowerCase(row).table_name);
   }
 
   async readTableMeta(tableName: string) : Promise<Table> {
