@@ -104,7 +104,10 @@ export class MysqlProvider implements DBProvider {
   }
 
   async listAllTableNames(): Promise<string[]> {
-    return (await this.getResult('SELECT table_name FROM information_schema.tables WHERE table_schema = ?', this.connectionParams.database)).map(row => row.TABLE_NAME);
+    return (await this.getResult('SELECT table_name FROM information_schema.tables WHERE table_schema = ?', this.connectionParams.database)).map(row => {
+      console.log('table:', row);
+      return row.TABLE_NAME;
+    });
   }
 
   async readTableMeta(tableName: string) : Promise<Table> {
