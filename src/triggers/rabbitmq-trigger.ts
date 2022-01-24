@@ -1,7 +1,8 @@
 import amqp from 'amqplib';
+import logger from '../shared/logger';
 
 const baseQueue = process.env.RABBITMQ_FORMAT_QUEUE;
-console.log('baseQueue', baseQueue);
+logger.info('baseQueue', baseQueue);
 
 const connect = () => {
   const options = process.env.RABBITMQ_CONNECTION ? process.env.RABBITMQ_CONNECTION : {

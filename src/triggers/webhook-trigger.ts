@@ -2,6 +2,7 @@ import axios from 'axios';
 
 const triggerUrl = process.env.TRIGGER_URL;
 import { readFileSync, existsSync } from 'fs';
+import logger from '../shared/logger';
 
 type WebhookConfig = {
   fallbackWebhooks: string[];
@@ -30,7 +31,7 @@ export const WebhookTrigger = async (tableName, data) => {
       }
     }
   } else {
-    console.log(tableName, JSON.stringify(data));
+    logger.debug(tableName, JSON.stringify(data));
   }
   return Promise.resolve(null);
 }

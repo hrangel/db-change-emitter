@@ -9,6 +9,7 @@ import { Table } from './structure/table';
 import { DataTrigger } from './triggers/trigger';
 import { RabbitMQTrigger } from './triggers/rabbitmq-trigger';
 import { WebhookTrigger } from './triggers/webhook-trigger';
+import logger from './shared/logger';
 
 
 type ComparisonItem = {
@@ -59,7 +60,7 @@ const triggerOnChanges = async (table: Table, provider: DBProvider, triggerCallb
   const items = await compareToBackup(currentJson, backupPath, provider);
   if (items.length > 0) {
     await backupTableJson(currentJson, backupPath);
-    console.log('TRIGGERING: ' + table.name);
+    logger.info('TRIGGERING: ' + table.name);
     return await triggerCallback(table.name, {
       table: table.name,
       items,
@@ -88,11 +89,11 @@ const checkForChanges = async () => {
   }
 }
 
-console.log('Starting', new Date());
+logger.info('Starting', new Date());
 checkForChanges().then(() => {
-  console.log('Finished', new Date());
+  logger.info('Finished', new Date());
   process.exit();
 }).catch(err => { 
-  console.error(err)
+  logger.error(err)
   process.exit();
 });

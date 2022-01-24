@@ -6,6 +6,7 @@ import { Table } from "../structure/table";
 
 import { IndirectTableField } from "../structure/indirect-table-field";
 import { DBProvider } from "./provider";
+import logger from "../shared/logger";
 
 const objectKeysToLowerCase = (origObj): any => {
   return Object.keys(origObj).reduce(function (newObj, key) {
@@ -121,7 +122,7 @@ export class MysqlProvider implements DBProvider {
 
     const primaryFields = await this.getResult(`SHOW KEYS FROM ${tableName} WHERE Key_name = 'PRIMARY'`, null);
     if (!primaryFields || primaryFields.length === 0) {
-      console.log('NO PRIMARY FIELDS for table: ' + tableName);
+      logger.warn('NO PRIMARY FIELDS for table: ' + tableName);
       return null;
     }
     const primaryFieldName = primaryFields[0].Column_name;
